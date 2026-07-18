@@ -4,6 +4,7 @@ import { SignalingClient } from "../net/SignalingClient";
 import { getMap, listMaps, type MapSummary } from "../net/MapApi";
 import { buildDefaultMap } from "../maps/defaultMap";
 import type { GameStartInfo } from "../game/Game";
+import { LobbyPreview } from "./LobbyPreview";
 
 const DEFAULT_MAP_OPTION = "__default__";
 
@@ -26,7 +27,19 @@ export class Lobby {
   }
 
   private renderEntryScreen(): void {
+    this.preview?.dispose();
+    this.preview = undefined;
     this.root.innerHTML = "";
+
+    const layout = el("div", "entry-layout");
+
+    const previewPane = el("div", "preview-pane");
+    const canvas = document.createElement("canvas");
+    canvas.className = "preview-canvas";
+    previewPane.appendChild(canvas);
+    layout.appendChild(previewPane);
+
+    const panelPane = el("div", "panel-pane");
     const panel = el("div", "panel");
 
     const title = el("h1", "title");
@@ -69,10 +82,26 @@ export class Lobby {
     panel.appendChild(status);
     this.statusEl = status;
 
-    this.root.appendChild(panel);
+    panelPane.appendChild(panel);
+    layout.appendChild(panelPane);
+    this.root.appendChild(layout);
+
+    // Wait until the pane is laid out (flex sizing needs to resolve) before sizing the canvas.
+    this.preview = new LobbyPreview(canvas);
+
+    const onResize = () => this.preview?.resize(previewPane.clientWidth, previewPane.clientHeight);
+    window.addEventListener("resize", onResize);
+    // Clean up resize listener when preview is replaced
+    const origDispose = this.preview.dispose.bind(this.preview);
+    this.preview.dispose = () => { window.removeEventListener("resize", onResize); origDispose(); };
   }
 
   private statusEl: HTMLElement | undefined;
+  private rosterListEl: HTMLElement | undefined;
+  private rosterTitleEl: HTMLElement | undefined;
+  private onRoomScreen = false;
+  private preview: LobbyPreview | undefined;
+
   private setStatus(message: string): void {
     if (this.statusEl) this.statusEl.textContent = message;
   }
@@ -94,7 +123,8 @@ export class Lobby {
           onPeerDisconnected: () => this.renderRoomScreen(),
           onRosterUpdate: (roster) => {
             this.roster = roster;
-            this.renderRoomScreen();
+            if (this.onRoomScreen) this.updateRosterInPlace();
+            else this.renderRoomScreen();
           },
         },
       );
@@ -127,7 +157,8 @@ export class Lobby {
           onPeerDisconnected: () => this.setStatus("Lost connection to host."),
           onRosterUpdate: (roster) => {
             this.roster = roster;
-            this.renderRoomScreen();
+            if (this.onRoomScreen) this.updateRosterInPlace();
+            else this.renderRoomScreen();
           },
         },
       );
@@ -150,32 +181,42 @@ export class Lobby {
   }
 
   private renderRoomScreen(): void {
+    this.preview?.dispose();
+    this.preview = undefined;
+    this.onRoomScreen = false;
     this.root.innerHTML = "";
+    const center = el("div", "screen-center");
     const panel = el("div", "panel");
 
     const title = el("h1", "title");
     title.textContent = this.isHost ? "Room created" : "Room joined";
     panel.appendChild(title);
 
-    const codeRow = el("div", "room-code");
-    codeRow.textContent = this.roomCode;
+    const codeRow = el("div", "room-code-row");
+    const codeText = el("span", "room-code");
+    codeText.textContent = this.roomCode;
+    codeRow.appendChild(codeText);
+    if (this.isHost) {
+      const copyBtn = el("button", "copy-button") as HTMLButtonElement;
+      copyBtn.textContent = "Copy";
+      copyBtn.onclick = () => {
+        void navigator.clipboard.writeText(this.roomCode).then(() => {
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+        });
+      };
+      codeRow.appendChild(copyBtn);
+    }
     panel.appendChild(codeRow);
 
     const rosterTitle = el("h2", "section-title");
     rosterTitle.textContent = `Players (${this.roster.length})`;
+    this.rosterTitleEl = rosterTitle;
     panel.appendChild(rosterTitle);
 
     const list = el("ul", "roster-list");
-    this.roster.forEach((entry, i) => {
-      const item = el("li", "roster-item");
-      const swatch = el("span", "swatch");
-      swatch.style.background = `#${(PLAYER_COLORS[i % PLAYER_COLORS.length]?.hex ?? 0xffffff).toString(16).padStart(6, "0")}`;
-      item.appendChild(swatch);
-      const label = el("span", "roster-name");
-      label.textContent = entry.name + (entry.isHost ? " (host)" : "");
-      item.appendChild(label);
-      list.appendChild(item);
-    });
+    this.rosterListEl = list;
+    this.buildRosterItems(list);
     panel.appendChild(list);
 
     if (this.isHost) {
@@ -213,7 +254,28 @@ export class Lobby {
     panel.appendChild(status);
     this.statusEl = status;
 
-    this.root.appendChild(panel);
+    center.appendChild(panel);
+    this.root.appendChild(center);
+    this.onRoomScreen = true;
+  }
+
+  private buildRosterItems(list: HTMLElement): void {
+    list.innerHTML = "";
+    this.roster.forEach((entry, i) => {
+      const item = el("li", "roster-item");
+      const swatch = el("span", "swatch");
+      swatch.style.background = `#${(PLAYER_COLORS[i % PLAYER_COLORS.length]?.hex ?? 0xffffff).toString(16).padStart(6, "0")}`;
+      item.appendChild(swatch);
+      const label = el("span", "roster-name");
+      label.textContent = entry.name + (entry.isHost ? " (host)" : "");
+      item.appendChild(label);
+      list.appendChild(item);
+    });
+  }
+
+  private updateRosterInPlace(): void {
+    if (this.rosterListEl) this.buildRosterItems(this.rosterListEl);
+    if (this.rosterTitleEl) this.rosterTitleEl.textContent = `Players (${this.roster.length})`;
   }
 
   private async startGame(): Promise<void> {

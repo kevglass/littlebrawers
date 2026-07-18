@@ -90,6 +90,10 @@ export interface PlayerSnapshot {
   maxHp: number;
   alive: boolean;
   team: number;
+  /** true while this player's movement input is non-zero, for locomotion animation */
+  moving: boolean;
+  /** increments each time this player performs an attack action, so clients can trigger a one-shot animation */
+  attackSeq: number;
 }
 
 export interface GameSnapshotMessage {

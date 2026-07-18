@@ -71,7 +71,7 @@ export class Game {
     if (this.isHost) {
       this.simulation = new Simulation(info.mapData, info.players);
       const snapshot = this.simulation.getSnapshot();
-      this.applySnapshot(snapshot, 1);
+      this.applySnapshot(snapshot, 1, 0);
     }
 
     this.network.setCallbacks({
@@ -128,7 +128,7 @@ export class Game {
 
       this.snapshotAccumulator += dt;
       const snapshot = this.simulation.getSnapshot();
-      this.applySnapshot(snapshot, 1);
+      this.applySnapshot(snapshot, 1, dt);
       if (this.snapshotAccumulator >= 1 / SNAPSHOT_SEND_HZ) {
         this.snapshotAccumulator = 0;
         this.network.broadcast(snapshot);
@@ -148,7 +148,7 @@ export class Game {
           attack: localInput.attack,
         });
       }
-      if (this.latestSnapshot) this.applySnapshot(this.latestSnapshot, REMOTE_LERP_FACTOR);
+      if (this.latestSnapshot) this.applySnapshot(this.latestSnapshot, REMOTE_LERP_FACTOR, dt);
     }
 
     if (localPlayer) this.cameraController.follow(localPlayer.group.position.x, localPlayer.group.position.z);
@@ -157,7 +157,7 @@ export class Game {
     this.renderer.render(this.scene, this.cameraController.camera);
   };
 
-  private applySnapshot(snapshot: GameSnapshotMessage, lerpFactor: number): void {
+  private applySnapshot(snapshot: GameSnapshotMessage, lerpFactor: number, dt: number): void {
     for (const snap of snapshot.players) {
       const player = this.players.get(snap.peerId);
       if (!player) continue;
@@ -169,6 +169,7 @@ export class Game {
       player.setAim(snap.aimX, snap.aimY);
       player.setHp(snap.hp, snap.maxHp);
       player.setVisible(snap.alive);
+      player.updateAnimation(dt, snap.moving, snap.attackSeq);
     }
   }
 

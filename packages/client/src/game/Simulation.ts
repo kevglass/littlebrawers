@@ -27,6 +27,8 @@ interface SimPlayerState {
   alive: boolean;
   respawnAtMs: number;
   lastAttackAtMs: number;
+  moving: boolean;
+  attackSeq: number;
 }
 
 const RESPAWN_DELAY_MS = 3000;
@@ -62,6 +64,8 @@ export class Simulation {
         alive: true,
         respawnAtMs: 0,
         lastAttackAtMs: 0,
+        moving: false,
+        attackSeq: 0,
       });
     });
   }
@@ -91,6 +95,7 @@ export class Simulation {
         this.lastProcessedSeq.set(peerId, input.seq);
 
         const moveLen = Math.hypot(input.moveX, input.moveY);
+        player.moving = moveLen > 0.001;
         if (moveLen > 0.001) {
           const speed = GAME_CONSTANTS.PLAYER_SPEED * dtSeconds;
           const nx = player.x + (input.moveX / moveLen) * speed;
@@ -107,6 +112,7 @@ export class Simulation {
 
         if (input.attack && nowMs - player.lastAttackAtMs >= GAME_CONSTANTS.ATTACK_COOLDOWN_MS) {
           player.lastAttackAtMs = nowMs;
+          player.attackSeq += 1;
           this.tryAttack(peerId, player, nowMs);
         }
       }
@@ -168,6 +174,8 @@ export class Simulation {
         maxHp: p.maxHp,
         alive: p.alive,
         team: p.team,
+        moving: p.moving,
+        attackSeq: p.attackSeq,
       });
     }
 
