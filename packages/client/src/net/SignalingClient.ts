@@ -58,7 +58,10 @@ export class SignalingClient {
     const poll = async () => {
       if (this.stopped) return;
       try {
-        const url = `${SIGNAL_BASE_URL}/api/poll.php?roomCode=${encodeURIComponent(this.roomCode)}&peerId=${encodeURIComponent(this.peerId)}&since=${this.lastSeq}`;
+        // Cache-bust: an intermediate cache serves a stale response indefinitely for a poll
+        // URL whose params never change (e.g. a host whose `since` never advances because it
+        // never receives a signal), regardless of the no-store headers the server sends.
+        const url = `${SIGNAL_BASE_URL}/api/poll.php?roomCode=${encodeURIComponent(this.roomCode)}&peerId=${encodeURIComponent(this.peerId)}&since=${this.lastSeq}&_=${Date.now()}`;
         const res = await fetch(url);
         if (!res.ok) return;
         const data: PollSignalResponse = await res.json();

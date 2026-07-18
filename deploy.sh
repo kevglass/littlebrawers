@@ -85,11 +85,10 @@ rsync -azP --delete \
   server/lib/ \
   "${REMOTE}:${REMOTE_DIR}/lib/"
 
-# ─── 7. Upload data directory structure only (never overwrite saved data) ─────
-step "Syncing data directory structure (preserving existing maps/rooms)..."
+# ─── 7. Upload maps, skipping live room state ──────────────────────────────────
+step "Syncing maps (preserving live rooms)..."
 rsync -azP \
   --exclude="rooms/*.json" \
-  --exclude="maps/*.json" \
   server/data/ \
   "${REMOTE}:${REMOTE_DIR}/data/"
 

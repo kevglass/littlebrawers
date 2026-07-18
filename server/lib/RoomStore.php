@@ -88,6 +88,40 @@ final class RoomStore
         }
     }
 
+    /**
+     * Read-only lookup: shared lock, no write-back. Polling hits this every
+     * ~600ms per connected player, so unlike withRoom() it must never rewrite
+     * the file — doing so raced real writers (join/signal) under concurrent
+     * production traffic and could clobber a just-joined player with a stale
+     * snapshot (invisible locally, where the single-threaded dev server never
+     * has two requests in flight at once).
+     *
+     * @return array<string,mixed>|null
+     */
+    private static function readRoom(string $code): ?array
+    {
+        $path = self::pathFor($code);
+        if (!file_exists($path)) {
+            return null;
+        }
+
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            return null;
+        }
+
+        try {
+            flock($handle, LOCK_SH);
+            $raw = stream_get_contents($handle);
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+
+        $room = ($raw === false || $raw === '') ? null : json_decode($raw, true);
+        return is_array($room) ? $room : null;
+    }
+
     /** @return array{code:string, room:array<string,mixed>} */
     public static function createRoom(string $hostName): array
     {
@@ -196,10 +230,15 @@ final class RoomStore
     /** @return array{envelopes: array<int, array<string,mixed>>, roster: array<int, array<string,mixed>>}|null */
     public static function poll(string $code, string $peerId, int $since): ?array
     {
-        $room = self::withRoom($code, fn($room) => $room); // read-only, no mutation
+        $room = self::readRoom($code);
         if ($room === null || !isset($room['players'][$peerId])) {
             return null;
         }
+
+        // Rewriting the file used to be how a poll incidentally kept the room's mtime
+        // (and thus garbageCollect()'s TTL) fresh. touch() preserves that keepalive
+        // without the read-modify-write that caused the lost-update race.
+        @touch(self::pathFor($code));
 
         $inbox = $room['inboxes'][$peerId] ?? [];
         $envelopes = array_values(array_filter($inbox, fn($e) => $e['seq'] > $since));
