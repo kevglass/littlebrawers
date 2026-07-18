@@ -1,0 +1,141 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #10141c;
+  color: #eef1f6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#app {
+  height: 100%;
+}
+
+.editor-layout {
+  display: flex;
+  height: 100%;
+}
+
+.toolbar {
+  width: 260px;
+  flex-shrink: 0;
+  background: #171b26;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.canvas-wrap {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 24px;
+}
+
+canvas {
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
+  cursor: crosshair;
+}
+
+.section-title {
+  margin: 18px 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9aa4b8;
+}
+
+.section-title:first-child {
+  margin-top: 0;
+}
+
+.field {
+  margin-bottom: 8px;
+}
+
+.field-label {
+  display: block;
+  font-size: 12px;
+  color: #9aa4b8;
+  margin-bottom: 4px;
+}
+
+.text-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #10141c;
+  color: #eef1f6;
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.row .field {
+  flex: 1;
+}
+
+.tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tool-button, button {
+  cursor: pointer;
+}
+
+.tool-button {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1f2431;
+  color: #eef1f6;
+  font-size: 13px;
+}
+
+.tool-button.active {
+  background: #f1c40f;
+  color: #10141c;
+  border-color: #f1c40f;
+}
+
+.tool-row .tool-button {
+  flex: 1 0 45%;
+}
+
+.toolbar > .tool-button {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.hint {
+  font-size: 12px;
+  color: #6b7386;
+  line-height: 1.4;
+}
+
+.file-input {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #9aa4b8;
+}
+
+.status-text {
+  font-size: 12px;
+  color: #9aa4b8;
+  min-height: 32px;
+}
