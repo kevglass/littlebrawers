@@ -55,10 +55,14 @@ ssh "${REMOTE}" "
   set -e
   mkdir -p ${REMOTE_DIR}/editor
   mkdir -p ${REMOTE_DIR}/api/maps
+  mkdir -p ${REMOTE_DIR}/api/auth
   mkdir -p ${REMOTE_DIR}/lib
   mkdir -p ${REMOTE_DIR}/data/rooms
   mkdir -p ${REMOTE_DIR}/data/maps
-  chmod 775 ${REMOTE_DIR}/data ${REMOTE_DIR}/data/rooms ${REMOTE_DIR}/data/maps
+  mkdir -p ${REMOTE_DIR}/data/users
+  mkdir -p ${REMOTE_DIR}/data/sessions
+  chmod 775 ${REMOTE_DIR}/data ${REMOTE_DIR}/data/rooms ${REMOTE_DIR}/data/maps \
+            ${REMOTE_DIR}/data/users ${REMOTE_DIR}/data/sessions
 "
 
 # ─── 3. Upload game client (static files) ─────────────────────────────────────
@@ -86,9 +90,15 @@ rsync -azP --delete \
   "${REMOTE}:${REMOTE_DIR}/lib/"
 
 # ─── 7. Upload maps, skipping live room state ──────────────────────────────────
-step "Syncing maps (preserving live rooms)..."
-rsync -azP \
+# --update: never overwrite a file on the server with an older one — protects maps that
+# were created/edited directly on the live editor (server-only, not present or stale in
+# this local checkout) from being clobbered by a routine deploy of unrelated code.
+step "Syncing data directory structure (preserving live data)..."
+rsync -azP --update \
   --exclude="rooms/*.json" \
+  --exclude="rooms/_match.*" \
+  --exclude="users/*.json" \
+  --exclude="sessions/*.json" \
   server/data/ \
   "${REMOTE}:${REMOTE_DIR}/data/"
 
