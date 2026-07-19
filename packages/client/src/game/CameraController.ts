@@ -1,7 +1,8 @@
 import * as THREE from "three";
 
 const OFFSET = new THREE.Vector3(0, 16, 10);
-const FOLLOW_LERP = 0.12;
+// Exponential smoothing coefficient: 1/e decay per (1/FOLLOW_SPEED) seconds, frame-rate independent.
+const FOLLOW_SPEED = 10;
 
 /** Fixed-angle top-down-ish follow camera, in the style of Brawl Stars. */
 export class CameraController {
@@ -19,9 +20,10 @@ export class CameraController {
     this.camera.updateProjectionMatrix();
   }
 
-  follow(worldX: number, worldZ: number): void {
+  follow(worldX: number, worldZ: number, dt: number): void {
     this.targetPosition.set(worldX + OFFSET.x, OFFSET.y, worldZ + OFFSET.z);
-    this.camera.position.lerp(this.targetPosition, FOLLOW_LERP);
+    const alpha = 1 - Math.exp(-FOLLOW_SPEED * dt);
+    this.camera.position.lerp(this.targetPosition, alpha);
     this.lookAt.set(worldX, 0, worldZ);
     this.camera.lookAt(this.lookAt);
   }

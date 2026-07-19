@@ -16,6 +16,7 @@ final class RoomStore
     private const ROOM_CODE_LENGTH = 6;
     private const ROOM_TTL_SECONDS = 2 * 60 * 60;
     private const MAX_PLAYERS = 10;
+    private const MATCHMAKING_MAX_PLAYERS = 4;
     private const MAX_INBOX_SIZE = 500;
 
     public static function dataDir(): string
@@ -250,6 +251,7 @@ final class RoomStore
                 'name' => $info['name'],
                 'isHost' => $info['isHost'],
                 'joinedAt' => $info['joinedAt'],
+                'characterModel' => $info['characterModel'] ?? 'mina',
             ];
         }
 
@@ -279,6 +281,143 @@ final class RoomStore
             if ($now - filemtime($file) > self::ROOM_TTL_SECONDS) {
                 @unlink($file);
             }
+        }
+    }
+
+    /**
+     * Find an open matchmaking room and join it, or create a new one.
+     * Uses a global lock file (_match.lock) and a pointer file (_match.ptr)
+     * so concurrent callers serialise: the second caller joins the first's room
+     * rather than both creating separate rooms.
+     *
+     * @return array{roomCode:string, peerId:string, isHost:bool, hostPeerId:string, openedAt:int}
+     */
+    public static function findOrCreateMatchRoom(string $playerName, string $characterModel): array
+    {
+        $dir = self::dataDir();
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        $lockPath = $dir . '/_match.lock';
+        $ptrPath  = $dir . '/_match.ptr';
+
+        $lockHandle = fopen($lockPath, 'c');
+        if ($lockHandle === false || !flock($lockHandle, LOCK_EX)) {
+            throw new RuntimeException('Could not acquire matchmaking lock');
+        }
+
+        try {
+            $currentCode = file_exists($ptrPath) ? trim((string) file_get_contents($ptrPath)) : '';
+            $peerId = self::generatePeerId();
+            $now = time();
+
+            // Try to join the existing open room
+            if ($currentCode !== '') {
+                $room = self::readRoom($currentCode);
+                if (
+                    $room !== null &&
+                    !($room['started'] ?? false) &&
+                    count($room['players']) < self::MATCHMAKING_MAX_PLAYERS
+                ) {
+                    $hostPeerId = $room['hostPeerId'];
+                    $openedAt   = (int) ($room['openedAt'] ?? $now);
+
+                    $joined = self::withRoom($currentCode, function ($r) use ($peerId, $playerName, $characterModel, $now) {
+                        if (
+                            $r === null ||
+                            ($r['started'] ?? false) ||
+                            count($r['players']) >= self::MATCHMAKING_MAX_PLAYERS
+                        ) {
+                            return null;
+                        }
+                        $r['players'][$peerId] = [
+                            'name' => $playerName,
+                            'isHost' => false,
+                            'joinedAt' => $now,
+                            'characterModel' => $characterModel,
+                        ];
+                        $r['inboxes'][$peerId] = [];
+                        return $r;
+                    });
+
+                    if ($joined !== null) {
+                        // Clear pointer if the room is now full
+                        if (count($joined['players']) >= self::MATCHMAKING_MAX_PLAYERS) {
+                            file_put_contents($ptrPath, '');
+                        }
+                        return [
+                            'roomCode'  => $currentCode,
+                            'peerId'    => $peerId,
+                            'isHost'    => false,
+                            'hostPeerId' => $hostPeerId,
+                            'openedAt'  => $openedAt,
+                        ];
+                    }
+                }
+            }
+
+            // No joinable room — create one
+            self::garbageCollect();
+            $hostPeerId = $peerId;
+
+            for ($attempt = 0; $attempt < 20; $attempt++) {
+                $code = self::generateRoomCode();
+                if (file_exists(self::pathFor($code))) continue;
+
+                $room = self::withRoom($code, function ($existing) use ($code, $hostPeerId, $playerName, $characterModel, $now) {
+                    if ($existing !== null) return null;
+                    return [
+                        'code'        => $code,
+                        'hostPeerId'  => $hostPeerId,
+                        'matchmaking' => true,
+                        'openedAt'    => $now,
+                        'started'     => false,
+                        'createdAt'   => $now,
+                        'nextSeq'     => 1,
+                        'players'     => [
+                            $hostPeerId => [
+                                'name' => $playerName,
+                                'isHost' => true,
+                                'joinedAt' => $now,
+                                'characterModel' => $characterModel,
+                            ],
+                        ],
+                        'inboxes'     => [$hostPeerId => []],
+                    ];
+                });
+
+                if ($room !== null) {
+                    file_put_contents($ptrPath, $code);
+                    return [
+                        'roomCode'   => $code,
+                        'peerId'     => $hostPeerId,
+                        'isHost'     => true,
+                        'hostPeerId' => $hostPeerId,
+                        'openedAt'   => $now,
+                    ];
+                }
+            }
+
+            throw new RuntimeException('Failed to allocate a matchmaking room');
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+        }
+    }
+
+    /** Mark a matchmaking room as started so new players don't join it. */
+    public static function markStarted(string $code): void
+    {
+        $ptrPath = self::dataDir() . '/_match.ptr';
+        self::withRoom($code, function ($room) {
+            if ($room === null) return null;
+            $room['started'] = true;
+            return $room;
+        });
+        // Clear the pointer if it still points to this room
+        if (file_exists($ptrPath) && trim((string) file_get_contents($ptrPath)) === $code) {
+            file_put_contents($ptrPath, '');
         }
     }
 }

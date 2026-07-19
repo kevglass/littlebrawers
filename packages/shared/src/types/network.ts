@@ -4,6 +4,21 @@
 // game traffic no longer touches this server.
 // ---------------------------------------------------------------------------
 
+export interface FindMatchRequest {
+  playerName: string;
+  authToken?: string;
+  characterModel: string;
+}
+
+export interface FindMatchResponse {
+  roomCode: string;
+  peerId: string;
+  isHost: boolean;
+  hostPeerId: string;
+  /** Unix timestamp (seconds) when the matchmaking room was opened — used for the 10-second countdown. */
+  openedAt: number;
+}
+
 export interface CreateRoomRequest {
   hostName: string;
 }
@@ -61,6 +76,7 @@ export interface RosterEntry {
   name: string;
   isHost: boolean;
   joinedAt: number;
+  characterModel: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +124,7 @@ export interface GameStartMessage {
   type: "start";
   mapId: string;
   mapData: unknown; // MapData, kept unknown here to avoid a circular import
-  players: { peerId: string; name: string; color: number; team: number }[];
+  players: { peerId: string; name: string; color: number; team: number; isBot?: boolean; characterModel: string }[];
   startTimeMs: number;
 }
 

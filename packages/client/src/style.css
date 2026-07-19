@@ -64,6 +64,61 @@
   letter-spacing: 0.5px;
 }
 
+/* Auth screen tabs */
+.auth-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 9px;
+  border: none;
+  background: rgba(255,255,255,0.04);
+  color: #9aa4b8;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.auth-tab.active {
+  background: rgba(255,255,255,0.12);
+  color: #eef1f6;
+  font-weight: 600;
+}
+
+.auth-tab:disabled {
+  color: #4a5164;
+  cursor: not-allowed;
+}
+
+/* Countdown in waiting room */
+.countdown-text {
+  text-align: center;
+  font-size: 15px;
+  color: #f1c40f;
+  margin: 4px 0 4px;
+  min-height: 20px;
+}
+
+/* Arena name displayed below countdown */
+.arena-text {
+  text-align: center;
+  font-size: 13px;
+  color: #9aa4b8;
+  margin: 0 0 12px;
+  min-height: 18px;
+}
+
+/* Pending bot roster slot */
+.swatch--pending {
+  background: rgba(255,255,255,0.12) !important;
+  border: 1px dashed rgba(255,255,255,0.2);
+}
+
 .section-title {
   margin: 16px 0 8px;
   font-size: 14px;
@@ -220,4 +275,78 @@
   padding: 8px 12px;
   border-radius: 8px;
   pointer-events: none;
+}
+
+.connection-status {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: #eef1f6;
+  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 8px 12px;
+  border-radius: 8px;
+  pointer-events: none;
+  white-space: pre-line;
+  text-align: right;
+  line-height: 1.5;
+}
+
+.touch-joystick-base,
+.touch-attack-button {
+  display: none;
+}
+
+/* Only real touch-primary devices get the on-screen controls; a mouse/trackpad stays the
+   input method on hybrid touchscreen laptops. */
+@media (pointer: coarse) {
+  .touch-joystick-base {
+    display: block;
+    position: absolute;
+    left: 32px;
+    bottom: 32px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    touch-action: none;
+  }
+
+  .touch-joystick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 52px;
+    height: 52px;
+    margin-left: -26px;
+    margin-top: -26px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .touch-attack-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    right: 40px;
+    bottom: 44px;
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    background: rgba(212, 57, 47, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #eef1f6;
+    font-size: 28px;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .touch-attack-button.active {
+    background: rgba(212, 57, 47, 0.6);
+  }
 }

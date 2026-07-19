@@ -1,60 +1,85 @@
 import * as THREE from "three";
 
-const RUN_CLIP_PATTERN = /\|Run$/;
-const IDLE_CLIP_PATTERN = /\|Idle$/;
-const SHOOT_CLIP_PATTERN = /\|Shoot_OneHanded$/;
+// Matches both "CharacterArmature|Run"-style names (the Soldier's own Mixamo export) and
+// plain "Run"-style names (this project's re-exported clips, renamed on load since Mixamo
+// always calls the actual clip "mixamo.com" regardless of the download filename).
+const RUN_CLIP_PATTERN = /(^|\|)Run$/;
+const IDLE_CLIP_PATTERN = /(^|\|)Idle$/;
+const SHOOT_CLIP_PATTERN = /(^|\|)Shoot_OneHanded$/;
 
+interface MeshRig {
+  mixer: THREE.AnimationMixer;
+  idleAction: THREE.AnimationAction | undefined;
+  runAction: THREE.AnimationAction | undefined;
+  shootAction: THREE.AnimationAction | undefined;
+}
+
+/**
+ * Drives locomotion/attack animation. Some models (Mina, Shelly) have each of their
+ * meshes — body, hair, clothes, props — rigged with its own independent skeleton
+ * instance rather than one shared skeleton, so a single AnimationMixer bound to the
+ * model root can't move all of them; this holds one mixer per mesh instead, all
+ * updated together each frame so they stay in sync.
+ */
 export class CharacterAnimator {
-  private readonly mixer: THREE.AnimationMixer;
-  private idleAction: THREE.AnimationAction | undefined;
-  private runAction: THREE.AnimationAction | undefined;
-  private shootAction: THREE.AnimationAction | undefined;
+  private readonly rigs: MeshRig[];
 
-  constructor(root: THREE.Object3D, animations: THREE.AnimationClip[]) {
-    this.mixer = new THREE.AnimationMixer(root);
+  constructor(clipsByMesh: Map<THREE.Object3D, THREE.AnimationClip[]>) {
+    this.rigs = [...clipsByMesh.entries()].map(([mesh, clips]) => {
+      const mixer = new THREE.AnimationMixer(mesh);
 
-    const idleClip = animations.find((a) => IDLE_CLIP_PATTERN.test(a.name));
-    const runClip = animations.find((a) => RUN_CLIP_PATTERN.test(a.name));
-    const shootClip = animations.find((a) => SHOOT_CLIP_PATTERN.test(a.name));
+      const idleClip = clips.find((a) => IDLE_CLIP_PATTERN.test(a.name));
+      const runClip = clips.find((a) => RUN_CLIP_PATTERN.test(a.name));
+      const shootClip = clips.find((a) => SHOOT_CLIP_PATTERN.test(a.name));
 
-    if (idleClip) {
-      this.idleAction = this.mixer.clipAction(idleClip);
-      this.idleAction.weight = 1;
-      this.idleAction.play();
-    }
-    if (runClip) {
-      this.runAction = this.mixer.clipAction(runClip);
-      this.runAction.weight = 0;
-      this.runAction.play();
-    }
-    if (shootClip) {
-      this.shootAction = this.mixer.clipAction(shootClip);
-      this.shootAction.setLoop(THREE.LoopOnce, 1);
-      this.shootAction.clampWhenFinished = false;
-    }
+      const idleAction = idleClip ? mixer.clipAction(idleClip) : undefined;
+      if (idleAction) {
+        idleAction.weight = 1;
+        idleAction.play();
+      }
 
-    this.mixer.addEventListener("finished", (e) => {
-      if (e.action === this.shootAction) this.shootAction?.stop();
+      const runAction = runClip ? mixer.clipAction(runClip) : undefined;
+      if (runAction) {
+        runAction.weight = 0;
+        runAction.play();
+      }
+
+      const shootAction = shootClip ? mixer.clipAction(shootClip) : undefined;
+      if (shootAction) {
+        shootAction.setLoop(THREE.LoopOnce, 1);
+        shootAction.clampWhenFinished = false;
+      }
+
+      mixer.addEventListener("finished", (e) => {
+        if (e.action === shootAction) shootAction?.stop();
+      });
+
+      return { mixer, idleAction, runAction, shootAction };
     });
   }
 
   triggerAttack(): void {
-    if (this.shootAction) {
-      this.shootAction.reset();
-      this.shootAction.weight = 1;
-      this.shootAction.play();
+    for (const rig of this.rigs) {
+      if (!rig.shootAction) continue;
+      rig.shootAction.reset();
+      rig.shootAction.weight = 1;
+      rig.shootAction.play();
     }
   }
 
   update(dtSeconds: number, speedRatio: number): void {
     const run = Math.max(0, Math.min(1, speedRatio));
-    if (this.idleAction) this.idleAction.weight = 1 - run;
-    if (this.runAction) this.runAction.weight = run;
-    this.mixer.update(dtSeconds);
+    for (const rig of this.rigs) {
+      if (rig.idleAction) rig.idleAction.weight = 1 - run;
+      if (rig.runAction) rig.runAction.weight = run;
+      rig.mixer.update(dtSeconds);
+    }
   }
 
   dispose(): void {
-    this.mixer.stopAllAction();
-    this.mixer.uncacheRoot(this.mixer.getRoot() as THREE.Object3D);
+    for (const rig of this.rigs) {
+      rig.mixer.stopAllAction();
+      rig.mixer.uncacheRoot(rig.mixer.getRoot() as THREE.Object3D);
+    }
   }
 }

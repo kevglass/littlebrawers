@@ -2,9 +2,15 @@ export const GAME_CONSTANTS = {
   PLAYER_RADIUS: 0.6,
   PLAYER_SPEED: 6, // world units per second
   PLAYER_MAX_HP: 100,
-  ATTACK_RANGE: 8,
+  ATTACK_RANGE: 5,
   ATTACK_DAMAGE: 20,
   ATTACK_COOLDOWN_MS: 600,
+  // Passive regen once a player has been out of combat for a while.
+  HEAL_DELAY_MS: 4000,
+  HEAL_RATE_PER_SEC: 8,
+  // Bots hit softer and slower than a human landing every shot on cooldown.
+  BOT_DAMAGE_MULTIPLIER: 0.5,
+  BOT_ATTACK_COOLDOWN_MS: 1000,
   SNAPSHOT_RATE_HZ: 20,
   TICK_RATE_HZ: 30,
 } as const;

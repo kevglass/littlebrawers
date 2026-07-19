@@ -1,5 +1,5 @@
 import type { NetMessage, RosterEntry, SignalEnvelope } from "@brawlers/shared";
-import { PeerLink } from "./PeerLink";
+import { PeerLink, type PeerLinkState } from "./PeerLink";
 import { SignalingClient } from "./SignalingClient";
 
 export interface NetworkCallbacks {
@@ -118,8 +118,18 @@ export class NetworkManager {
     this.peers.get(this.hostPeerId)?.send(message);
   }
 
+  /** Undefined means no PeerLink exists yet for this peer (roster hasn't triggered one, or it hasn't been offered/received). */
+  getPeerState(peerId: string): PeerLinkState | undefined {
+    return this.peers.get(peerId)?.currentState;
+  }
+
   get connectedPeerIds(): string[] {
     return [...this.peers.keys()];
+  }
+
+  /** Stops signaling polling without closing WebRTC connections. Call once ICE handshake window has closed. */
+  stopSignaling(): void {
+    this.signaling.stopPolling();
   }
 
   async stop(): Promise<void> {

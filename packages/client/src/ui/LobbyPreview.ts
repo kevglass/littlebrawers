@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createCharacterInstance } from "../game/CharacterModel";
+import { createCharacterInstance, DEFAULT_CHARACTER_MODEL, type CharacterModelId } from "../game/CharacterModel";
 import { CharacterAnimator } from "../game/CharacterAnimator";
 
 export class LobbyPreview {
@@ -12,8 +12,10 @@ export class LobbyPreview {
   private animHandle = 0;
   private lastTime = performance.now();
   private rotationY = 0;
+  /** Guards against an earlier setModel()'s load resolving after a later one has started. */
+  private modelLoadToken = 0;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, characterModel: CharacterModelId = DEFAULT_CHARACTER_MODEL) {
     const w = canvas.clientWidth || 300;
     const h = canvas.clientHeight || 400;
 
@@ -47,16 +49,28 @@ export class LobbyPreview {
     ground.receiveShadow = true;
     this.scene.add(ground);
 
-    void createCharacterInstance().then(({ root, animations }) => {
-      if (this.disposed) return;
+    this.setModel(characterModel);
+    this.animate();
+  }
+
+  /** Swaps the previewed character model, e.g. when the player changes their selection. */
+  setModel(characterModel: CharacterModelId): void {
+    const token = ++this.modelLoadToken;
+    if (this.characterRoot) {
+      this.scene.remove(this.characterRoot);
+      this.characterRoot = undefined;
+    }
+    this.animator?.dispose();
+    this.animator = undefined;
+
+    void createCharacterInstance(characterModel).then(({ root, clipsByMesh }) => {
+      if (this.disposed || token !== this.modelLoadToken) return;
       this.characterRoot = root;
       this.scene.add(root);
-      this.animator = new CharacterAnimator(root, animations);
+      this.animator = new CharacterAnimator(clipsByMesh);
       // Prime a first frame so the model isn't in T-pose while it fades in.
       this.animator.update(0, 1);
     });
-
-    this.animate();
   }
 
   private animate = (): void => {

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GAME_CONSTANTS } from "@brawlers/shared";
 import { CharacterAnimator } from "./CharacterAnimator";
-import { createCharacterInstance } from "./CharacterModel";
+import { createCharacterInstance, DEFAULT_CHARACTER_MODEL, type CharacterModelId } from "./CharacterModel";
 
 const HEALTH_BAR_WIDTH = 1.2;
 const HEALTH_BAR_HEIGHT = 0.14;
@@ -19,6 +19,9 @@ export class Player {
   private characterRoot: THREE.Group | undefined;
   private animator: CharacterAnimator | undefined;
   private lastAttackSeq = 0;
+  private readonly billboardQuat = new THREE.Quaternion();
+  private readonly fillOffset = new THREE.Vector3();
+  private hpRatio = 1;
 
   hp: number = GAME_CONSTANTS.PLAYER_MAX_HP;
   maxHp: number = GAME_CONSTANTS.PLAYER_MAX_HP;
@@ -28,6 +31,7 @@ export class Player {
     public readonly name: string,
     public readonly color: number,
     public readonly isLocal: boolean,
+    characterModel: CharacterModelId = DEFAULT_CHARACTER_MODEL,
   ) {
     this.marker = new THREE.Mesh(
       new THREE.CircleGeometry(MARKER_RADIUS, 24),
@@ -59,10 +63,10 @@ export class Player {
     this.nameSprite.scale.set(1.6, 0.4, 1);
     this.group.add(this.nameSprite);
 
-    void createCharacterInstance().then(({ root, animations }) => {
+    void createCharacterInstance(characterModel).then(({ root, clipsByMesh }) => {
       this.characterRoot = root;
       this.group.add(root);
-      this.animator = new CharacterAnimator(root, animations);
+      this.animator = new CharacterAnimator(clipsByMesh);
     });
   }
 
@@ -78,11 +82,10 @@ export class Player {
   setHp(hp: number, maxHp: number): void {
     this.hp = hp;
     this.maxHp = maxHp;
-    const ratio = Math.max(0, Math.min(1, hp / maxHp));
-    this.healthBarFill.scale.x = ratio;
-    this.healthBarFill.position.x = -(HEALTH_BAR_WIDTH * (1 - ratio)) / 2;
+    this.hpRatio = Math.max(0, Math.min(1, hp / maxHp));
+    this.healthBarFill.scale.x = this.hpRatio;
     const material = this.healthBarFill.material as THREE.MeshBasicMaterial;
-    material.color.setHex(ratio > 0.5 ? 0x38d34a : ratio > 0.25 ? 0xe6c33a : 0xd4392f);
+    material.color.setHex(this.hpRatio > 0.5 ? 0x38d34a : this.hpRatio > 0.25 ? 0xe6c33a : 0xd4392f);
   }
 
   /** Drives locomotion/attack animation. `attackSeq` increments upstream each time the player attacks. */
@@ -99,8 +102,20 @@ export class Player {
   }
 
   faceCameraBillboards(cameraQuaternion: THREE.Quaternion): void {
-    this.healthBarBg.quaternion.copy(cameraQuaternion);
-    this.healthBarFill.quaternion.copy(cameraQuaternion);
+    // healthBarBg/Fill are children of this.group, which itself rotates to face the aim
+    // direction (setAim) — copying the camera's quaternion straight in would compound
+    // with that parent rotation instead of canceling it out. Solve for the LOCAL
+    // quaternion that, combined with the group's current rotation, yields the camera's
+    // world orientation.
+    this.billboardQuat.copy(this.group.quaternion).invert().multiply(cameraQuaternion);
+    this.healthBarBg.quaternion.copy(this.billboardQuat);
+    this.healthBarFill.quaternion.copy(this.billboardQuat);
+
+    // The fill shrinks from its right edge, so its anchor needs to shift left in
+    // camera/billboard space — a raw position.x offset would be in group-local space and
+    // swing around with the player's aim direction instead of staying flush with the bar.
+    this.fillOffset.set(-(HEALTH_BAR_WIDTH * (1 - this.hpRatio)) / 2, 0, 0).applyQuaternion(this.billboardQuat);
+    this.healthBarFill.position.set(this.fillOffset.x, HEALTH_BAR_Y_OFFSET + this.fillOffset.y, 0.001 + this.fillOffset.z);
   }
 
   dispose(): void {

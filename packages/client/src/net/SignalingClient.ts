@@ -1,5 +1,6 @@
 import type {
   CreateRoomResponse,
+  FindMatchResponse,
   JoinRoomResponse,
   PollSignalResponse,
   RosterEntry,
@@ -35,6 +36,14 @@ export class SignalingClient {
     public readonly roomCode: string,
     public readonly peerId: string,
   ) {}
+
+  static async findMatch(playerName: string, characterModel: string, authToken?: string): Promise<FindMatchResponse> {
+    return postJson<FindMatchResponse>("/api/find-match.php", { playerName, authToken, characterModel });
+  }
+
+  static async markStarted(roomCode: string): Promise<void> {
+    await postJson("/api/mark-started.php", { roomCode });
+  }
 
   static async createRoom(hostName: string): Promise<CreateRoomResponse> {
     return postJson<CreateRoomResponse>("/api/create-room.php", { hostName });
@@ -77,6 +86,12 @@ export class SignalingClient {
 
     void poll();
     this.pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
+  }
+
+  stopPolling(): void {
+    this.stopped = true;
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = undefined;
   }
 
   async leave(): Promise<void> {
