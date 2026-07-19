@@ -8,8 +8,18 @@ export interface LocalInputState {
   attack: boolean;
 }
 
+export interface OpponentPosition {
+  peerId: string;
+  x: number;
+  z: number;
+}
+
 const GROUND_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const JOYSTICK_DEAD_ZONE = 0.15;
+/** How close (in CSS pixels) a tap needs to land to an opponent's on-screen position to count as targeting them. */
+const TAP_TARGET_RADIUS_PX = 60;
+/** Representative world-space height to project opponents from — doesn't need to be exact, just roughly torso-level so the screen point lands on their visible body. */
+const TAP_TARGET_HEIGHT = 1;
 
 function createOverlayEl(tag: string, className: string): HTMLDivElement {
   const el = document.createElement(tag) as HTMLDivElement;
@@ -37,6 +47,9 @@ export class InputManager {
   private touchAttackHeld = false;
   /** Facing direction to fall back on when there's no mouse to aim with (touch has no hover). */
   private readonly lastAimDir = new THREE.Vector2(0, 1);
+  private opponents: OpponentPosition[] = [];
+  /** Set by a tap that lands on an opponent; consumed (aims + fires once) on the next sample(). */
+  private tapTarget: { x: number; z: number } | null = null;
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -67,6 +80,13 @@ export class InputManager {
     this.attackButton.addEventListener("touchstart", this.onAttackTouchStart, { passive: false });
     this.attackButton.addEventListener("touchend", this.onAttackTouchEnd);
     this.attackButton.addEventListener("touchcancel", this.onAttackTouchEnd);
+
+    domElement.addEventListener("touchstart", this.onCanvasTouchStart, { passive: false });
+  }
+
+  /** Lets Game.ts refresh who's tappable each frame — screen position depends on the live camera. */
+  setOpponents(opponents: OpponentPosition[]): void {
+    this.opponents = opponents;
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
@@ -150,6 +170,35 @@ export class InputManager {
     this.attackButton.classList.remove("active");
   };
 
+  /** A tap anywhere on the game view (outside the joystick/attack button) that lands on an opponent aims at and fires on them — lets touch players fight without also reaching for the attack button. */
+  private onCanvasTouchStart = (e: TouchEvent): void => {
+    const target = e.target as Node | null;
+    if (target && (this.joystickBase.contains(target) || this.attackButton.contains(target))) return;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const hit = this.findTappedOpponent(touch.clientX, touch.clientY);
+    if (!hit) return;
+    e.preventDefault();
+    this.tapTarget = { x: hit.x, z: hit.z };
+  };
+
+  private findTappedOpponent(clientX: number, clientY: number): OpponentPosition | undefined {
+    const rect = this.domElement.getBoundingClientRect();
+    let best: OpponentPosition | undefined;
+    let bestDist = TAP_TARGET_RADIUS_PX;
+    for (const opponent of this.opponents) {
+      const screen = new THREE.Vector3(opponent.x, TAP_TARGET_HEIGHT, opponent.z).project(this.camera);
+      const px = ((screen.x + 1) / 2) * rect.width + rect.left;
+      const py = ((1 - screen.y) / 2) * rect.height + rect.top;
+      const dist = Math.hypot(px - clientX, py - clientY);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = opponent;
+      }
+    }
+    return best;
+  }
+
   /** Ground-plane intersection point of the current mouse position, in world space. */
   private getMouseGroundPoint(): THREE.Vector3 | null {
     this.raycaster.setFromCamera(this.mouseNdc, this.camera);
@@ -178,7 +227,22 @@ export class InputManager {
 
     let aimX: number | undefined;
     let aimZ: number | undefined;
-    if (this.mouseActive) {
+    let tapAttack = false;
+
+    if (this.tapTarget) {
+      const dx = this.tapTarget.x - playerWorldX;
+      const dz = this.tapTarget.z - playerWorldZ;
+      const tapLen = Math.hypot(dx, dz);
+      if (tapLen > 0.001) {
+        aimX = dx / tapLen;
+        aimZ = dz / tapLen;
+        this.lastAimDir.set(aimX, aimZ);
+        tapAttack = true;
+      }
+      this.tapTarget = null;
+    }
+
+    if (aimX === undefined && this.mouseActive) {
       const groundPoint = this.getMouseGroundPoint();
       if (groundPoint) {
         const dx = groundPoint.x - playerWorldX;
@@ -199,7 +263,7 @@ export class InputManager {
       aimZ = this.lastAimDir.y;
     }
 
-    return { moveX, moveY, aimX, aimZ, attack: this.attackHeld || this.touchAttackHeld };
+    return { moveX, moveY, aimX, aimZ, attack: this.attackHeld || this.touchAttackHeld || tapAttack };
   }
 
   dispose(): void {
@@ -208,6 +272,7 @@ export class InputManager {
     this.domElement.removeEventListener("mousemove", this.onMouseMove);
     this.domElement.removeEventListener("mousedown", this.onMouseDown);
     this.domElement.removeEventListener("mouseup", this.onMouseUp);
+    this.domElement.removeEventListener("touchstart", this.onCanvasTouchStart);
     window.removeEventListener("touchmove", this.onJoystickTouchMove);
     window.removeEventListener("touchend", this.onJoystickTouchEnd);
     window.removeEventListener("touchcancel", this.onJoystickTouchEnd);

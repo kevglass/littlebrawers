@@ -183,6 +183,12 @@ export class Game {
     const nowMs = performance.now();
     const localPlayer = this.players.get(this.localPeerId);
 
+    this.inputManager.setOpponents(
+      [...this.players.entries()]
+        .filter(([peerId, p]) => peerId !== this.localPeerId && p.group.visible)
+        .map(([peerId, p]) => ({ peerId, x: p.group.position.x, z: p.group.position.z })),
+    );
+
     // Host: run simulation at full frame rate for smooth rendering. The hostTick setInterval
     // is skipped while the tab is visible and only takes over when it's hidden.
     if (this.isHost && this.simulation) {

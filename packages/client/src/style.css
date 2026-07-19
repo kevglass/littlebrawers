@@ -257,6 +257,12 @@
   inset: 0;
 }
 
+/* Tapping to aim-and-shoot on touch shouldn't trigger the browser's own gestures
+   (pull-to-refresh, pinch-zoom, double-tap-to-zoom) on top of the game's own handling. */
+#game-container canvas {
+  touch-action: none;
+}
+
 .preview-canvas {
   position: absolute;
   inset: 0;

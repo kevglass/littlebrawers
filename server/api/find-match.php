@@ -15,7 +15,7 @@ $playerName = require_string($body, 'playerName', 20);
 $authToken  = is_string($body['authToken'] ?? null) ? $body['authToken'] : null;
 
 $characterModel = $body['characterModel'] ?? null;
-if (!in_array($characterModel, ['mina', 'shelly'], true)) {
+if (!in_array($characterModel, ['mina', 'shelly', 'el-primo'], true)) {
     $characterModel = 'mina';
 }
 

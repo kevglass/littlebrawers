@@ -347,7 +347,7 @@ export class Lobby {
         color: PLAYER_COLORS[i % PLAYER_COLORS.length]?.hex ?? 0xffffff,
         team: i,
         isBot: true,
-        characterModel: DEFAULT_CHARACTER_MODEL,
+        characterModel: SELECTABLE_CHARACTER_MODELS[Math.floor(Math.random() * SELECTABLE_CHARACTER_MODELS.length)] ?? DEFAULT_CHARACTER_MODEL,
       });
     }
 
