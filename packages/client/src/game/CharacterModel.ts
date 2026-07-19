@@ -3,10 +3,10 @@ import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 import { clone as cloneSkeletal } from "three/addons/utils/SkeletonUtils.js";
 
-export type CharacterModelId = "mina" | "shelly";
+export type CharacterModelId = "mina" | "shelly" | "el-primo";
 export const DEFAULT_CHARACTER_MODEL: CharacterModelId = "mina";
-export const CHARACTER_MODEL_IDS: CharacterModelId[] = ["mina", "shelly"];
-export const SELECTABLE_CHARACTER_MODELS: CharacterModelId[] = ["mina", "shelly"];
+export const CHARACTER_MODEL_IDS: CharacterModelId[] = ["mina", "shelly", "el-primo"];
+export const SELECTABLE_CHARACTER_MODELS: CharacterModelId[] = ["mina", "shelly", "el-primo"];
 
 /** Validates a model id coming off the network (another peer's roster/start message). */
 export function toCharacterModelId(id: string | undefined): CharacterModelId {
@@ -26,6 +26,7 @@ const TARGET_HEIGHT = 1.7;
 const MODEL_DIRS: Record<CharacterModelId, string> = {
   mina: "/models/mina",
   shelly: "/models/shelly",
+  "el-primo": "/models/el-primo",
 };
 
 // Shelly's export carries a held-gun mesh that isn't positioned correctly on her hand bone —
@@ -34,11 +35,12 @@ const EXCLUDED_MESH_NAMES: Partial<Record<CharacterModelId, RegExp>> = {
   shelly: /gun/i,
 };
 
-// Shelly's embedded FBX texture ("Tex.png") decodes to a blank/broken image — the real
-// texture ships alongside the export as a separate file, so force every material onto that
-// instead of whatever the FBX references internally.
+// Shelly's embedded FBX texture ("Tex.png") decodes to a blank/broken image, and El Primo's
+// FBX doesn't embed one at all (references it externally) — both ship the real texture
+// alongside the export as a separate file, so force every material onto that.
 const TEXTURE_OVERRIDE: Partial<Record<CharacterModelId, string>> = {
   shelly: "Shelly.jpg",
+  "el-primo": "primo_with_face_tex.png",
 };
 
 // Mixamo always names the actual animation clip "mixamo.com" regardless of what you type

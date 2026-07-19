@@ -16,7 +16,7 @@ import { LobbyPreview } from "./LobbyPreview";
 const MAX_PLAYERS = 4;
 const COUNTDOWN_S = 10;
 const BOT_NAMES = ["Bot Alpha", "Bot Beta", "Bot Gamma", "Bot Delta"];
-const CHARACTER_MODEL_LABELS: Record<CharacterModelId, string> = { mina: "Mina", shelly: "Shelly" };
+const CHARACTER_MODEL_LABELS: Record<CharacterModelId, string> = { mina: "Mina", shelly: "Shelly", "el-primo": "El Primo" };
 
 export class Lobby {
   private network: NetworkManager | undefined;
