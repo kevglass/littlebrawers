@@ -66,8 +66,18 @@ ssh "${REMOTE}" "
 "
 
 # ─── 3. Upload game client (static files) ─────────────────────────────────────
+# The client build shares its destination root with data/, api/, lib/, and editor/ (none of
+# which live inside packages/client/dist/), so --delete without excluding them would prune
+# all four as "extraneous" on every deploy — api/lib/editor get silently restored by the
+# steps right after this one, but data/ (users, sessions, live rooms) never does, since the
+# later data sync only restores what step 7 explicitly includes. This was live-confirmed to
+# wipe registered accounts on every deploy.
 step "Uploading game client..."
 rsync -azP --delete \
+  --exclude="/data/" \
+  --exclude="/api/" \
+  --exclude="/lib/" \
+  --exclude="/editor/" \
   packages/client/dist/ \
   "${REMOTE}:${REMOTE_DIR}/"
 
